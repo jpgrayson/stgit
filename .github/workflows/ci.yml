@@ -55,10 +55,10 @@ jobs:
     - name: Test
       env:
         STG_PROVE_OPTS: "--jobs=2"
-        STG_TEST_OPTS: "--verbose-log"
+        STG_TEST_OPTS: "--verbose-log -i -v"
         STG_PROFILE: ${{ matrix.profile }}
       run: |
-        timeout 900s make -C t prove
+        timeout 900s make -C t t3305-edit-committer-date.sh
     - name: Show Failures
       if: ${{ failure() }}
       run: |
