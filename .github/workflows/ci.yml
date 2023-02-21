@@ -10,6 +10,92 @@ on:
   - cron: '30 1 * * 0'
 
 jobs:
+  windows-build:
+    name: Windows Build
+    runs-on: windows-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+    - name: Build
+      run: |
+        cargo --locked build --all-features --profile release
+    # - name: Setup MSYS2
+    #   uses: msys2/setup-msys2@v2
+    #   with:
+    #     install: base-devel git
+    # - name: Test
+    #   shell: msys2 {0}
+    #   env:
+    #     STG_TEST_OPTS: "-v -i"
+    #     STG_PROFILE: "release"
+    #   run: |
+    #     timeout 900s make -C t test
+
+  full-suite:
+    name: Build, Lints, Docs, Tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: stable
+        components: clippy, rustfmt
+    - name: Format checks
+      run: |
+        cargo --locked fmt --all --check
+    - name: Clippy checks
+      run: |
+        cargo --locked clippy -- --deny warnings
+    - name: API docs
+      run: |
+        cargo --locked rustdoc -- --deny warnings
+    - name: Unit tests
+      run: |
+        cargo --locked test
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install asciidoc asciidoctor docbook-xsl-ns gnupg2 quilt xmlto
+    - name: Build docs asciidoc
+      env:
+        STG_PROFILE: "dev"
+      run: |
+        make -j2 doc
+    - name: Build docs asciidoctor
+      env:
+        STG_PROFILE: "dev"
+        USE_ASCIIDOCTOR: "1"
+      run: |
+        make -j2 doc
+    - name: Install HTML docs
+      env:
+        STG_PROFILE: "dev"
+        USE_ASCIIDOCTOR: "1"
+      run: |
+        make -j2 htmldir="$GITHUB_WORKSPACE"/stgit-html install-html
+    - name: Upload HTML docs
+      uses: actions/upload-artifact@v3
+      with:
+        name: html-doc
+        path: ${{ github.workspace }}/stgit-html
+    - name: Integration tests
+      env:
+        STG_PROVE_OPTS: "--jobs=2"
+        STG_TEST_OPTS: "--verbose-log"
+        STG_PROFILE: "dev"
+      run: |
+        timeout 900s make prove
+    - name: Show failures
+      if: ${{ failure() }}
+      run: |
+        make -C t show-failure-results
+
   build-and-test:
     name: Build and Test
     strategy:
@@ -18,9 +104,6 @@ jobs:
         include:
           - os: ubuntu-latest
             profile: release
-            toolchain: stable
-          - os: ubuntu-latest
-            profile: dev
             toolchain: stable
           - os: ubuntu-latest
             profile: dev
@@ -63,115 +146,3 @@ jobs:
       if: ${{ failure() }}
       run: |
         make -C t show-failure-results
-
-  unit-tests:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-    - name: Run Unit Tests
-      run: |
-        cargo --locked test
-
-  clippy:
-    name: Clippy Lint
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-        components: clippy
-    - name: Clippy Checks
-      run: |
-        cargo --locked clippy -- --deny warnings
-
-  rustfmt:
-    name: Format Lint
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-        components: rustfmt
-    - name: Check formatting
-      run: |
-        cargo --locked fmt --all --check
-
-  api-docs:
-    name: API Documentation
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-    - name: Build docs
-      run: |
-        cargo rustdoc -- --deny warnings
-
-  docs:
-    name: User Documentation
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install asciidoc asciidoctor docbook-xsl-ns xmlto
-    - name: Build Docs Asciidoc
-      run: |
-        make -j2 doc
-    - name: Build Docs Asciidoctor
-      run: |
-        make -j2 USE_ASCIIDOCTOR=1 doc
-    - name: Install HTML Docs
-      run: |
-        make -j2 USE_ASCIIDOCTOR=1 htmldir="$GITHUB_WORKSPACE"/stgit-html install-html
-    - name: Upload HTML Docs
-      uses: actions/upload-artifact@v3
-      with:
-        name: html-doc
-        path: ${{ github.workspace }}/stgit-html
-
-  windows-build:
-    name: Windows Build
-    runs-on: windows-latest
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
-    - name: Build
-      run: |
-        cargo --locked build --all-features --profile release
-    # - name: Setup MSYS2
-    #   uses: msys2/setup-msys2@v2
-    #   with:
-    #     install: base-devel git
-    # - name: Test
-    #   shell: msys2 {0}
-    #   env:
-    #     STG_TEST_OPTS: "-v -i"
-    #     STG_PROFILE: "release"
-    #   run: |
-    #     timeout 900s make -C t test
