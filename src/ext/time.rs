@@ -27,6 +27,22 @@ pub(crate) trait TimeExtended {
                 zoned_now.timestamp().as_second(),
                 zoned_now.offset().seconds(),
             ))
+        } else if let Ok(val) = jiff::fmt::strtime::parse("%Y-%m-%d %H:%M:%S", time_str) {
+            let mut val = val;
+            val.set_offset(Some(zoned_now.offset()));
+            let val = val.to_zoned()?;
+            Ok(gix::date::Time::new(
+                val.timestamp().as_second(),
+                val.offset().seconds(),
+            ))
+        } else if let Ok(val) = jiff::fmt::strtime::parse("%Y-%m-%dT%H:%M:%S", time_str) {
+            let mut val = val;
+            val.set_offset(Some(zoned_now.offset()));
+            let val = val.to_zoned()?;
+            Ok(gix::date::Time::new(
+                val.timestamp().as_second(),
+                val.offset().seconds(),
+            ))
         } else if let Ok(time) = gix::date::parse(time_str, Some(now)) {
             Ok(time)
         } else if let Ok(time) = gix::date::parse(
